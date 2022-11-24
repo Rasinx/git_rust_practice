@@ -1,4 +1,4 @@
-use std::{fmt::format, env, path::Path, fs::{File, self}, io::{Write, Read}, f64::consts::E};
+use std::{env, path::Path, fs::{File, self}, io::{Write, Read}};
 
 use crate::utils::{zlib_encode, sha1_encode, zlib_decode};
 
@@ -37,9 +37,10 @@ impl GitBaseObj {
             },
         }
         let mut file = File::create(&file_path).unwrap();
-        match file.write_all(&final_ctx) {
-            Ok(_) => Ok(file_path_str),
-            Err(err) => Err(err.to_string()),
+        if let Err(err) = file.write_all(&final_ctx) {
+            Err(err.to_string())
+        } else {
+            Result::Ok(file_path_str)
         } 
     }
 }
@@ -53,8 +54,53 @@ fn cat_file(file_path: &str) -> String {
     zlib_decode(&content)
 }
 
-#[cfg(test)]
+fn add_op(args: Vec<String>) -> Result<Vec<String>, String> {
+    let mut store_file_vec: Vec<String> = Vec::new();
+    if args.len()==0 || args[0] == "." {
+        let dir = fs::read_dir(".").expect("get directory fail");
+        for ele in dir {
+            if let Ok(e) = ele {
+                let e_path = e.path();
+                // TODO: check ignore directory and file path;
+                let file_name = e.file_name().into_string().expect("get file name fail");
+                let git_obj: GitBaseObj = if e_path.is_dir() {
+                    // tree file
+                    mk_tree_file(&file_name)
+                }else {
+                    // blob file
+                    mk_blob_file(&file_name)
+                };
+                let store_rst = git_obj.store_self().expect("store self fail");
+                store_file_vec.push(store_rst.clone());
+            }
+        }
+    }
+    Ok(store_file_vec)
+}
 
+fn mk_tree_file(dir_name: &str) -> GitBaseObj {
+    let children = fs::read_dir(&format!("./{}", dir_name));
+    for ele in children {
+        // TODO: i need a recursion.
+        // * tree obj
+        //  * ------------------------------------------------
+        //  * tree hash_code origin_name   // this depends on their children
+        //  * blob hash_code origin_name
+        //  * ------------------------------------------------
+        // 
+    }
+    todo!()
+}
+
+fn mk_blob_file(file_name: &String) -> GitBaseObj {
+    let mut con_vec: Vec<u8> = Vec::new();
+    let mut file = File::open(&file_name).unwrap();
+    let _ = file.read_to_end(&mut con_vec).expect("read file fail");
+    let git_obj = GitBaseObj::new("blob".into(), con_vec, file_name.clone());
+    git_obj
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     #[test]
@@ -65,5 +111,14 @@ mod tests {
         println!("{:?}", s_rst);
         let src_content = cat_file(&s_rst.unwrap());
         println!("{:?}", src_content);
+    }
+
+    #[test]
+    fn test_git_add() {
+        let add_rst = add_op(Vec::new()).expect("add op fail");
+        for ele in add_rst.iter() {
+            let tmp_ctx = cat_file(&ele[..]);
+            println!("{tmp_ctx}");
+        }
     }
 }

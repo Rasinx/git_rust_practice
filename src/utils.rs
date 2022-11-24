@@ -16,7 +16,6 @@ pub fn zlib_decode(content: &Vec<u8>) -> String {
     let mut decoder = ZlibDecoder::new(&content[..]);
     let mut rst = String::new();
     let _ = decoder.read_to_string(&mut rst);
-
     rst
 }
 
